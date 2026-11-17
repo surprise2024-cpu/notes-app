@@ -25,3 +25,36 @@ export const loginSchema = z.object({
 
 export type RegisterFormData = z.infer<typeof registerSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
+
+export const profileSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, "Username must be at least 3 characters"),
+
+    currentPassword: z.string().min(1, "Current password is required"),
+
+    newPassword: z.string(),
+
+    confirmNewPassword: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.newPassword && data.newPassword.length < 8) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["newPassword"],
+        message: "New password must be at least 8 characters",
+      });
+    }
+
+    if (data.newPassword !== data.confirmNewPassword) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["confirmNewPassword"],
+        message: "New passwords do not match",
+      });
+    }
+  });
+
+export type ProfileFormData = z.infer<typeof profileSchema>;
