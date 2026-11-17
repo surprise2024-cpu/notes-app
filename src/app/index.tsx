@@ -1,14 +1,9 @@
 import { Redirect } from "expo-router";
-import { StyleSheet } from "react-native";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Index() {
-  return <Redirect href="/login" />;
-}
+  const { user } = useAuth();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+  return <Redirect href={user ? "/home" : "/login"} />;
+}
