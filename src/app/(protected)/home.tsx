@@ -2,6 +2,8 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 
+import { useRouter } from "expo-router";
+
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
 
@@ -13,6 +15,8 @@ export default function HomeScreen() {
     }
   };
 
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>My Notes</Text>
@@ -20,6 +24,10 @@ export default function HomeScreen() {
       <Text style={styles.welcome}>Welcome, {user?.username}!</Text>
 
       <Text style={styles.subtitle}>Your notes will appear here.</Text>
+
+      <Pressable style={styles.button} onPress={() => router.push("/profile")}>
+        <Text style={styles.buttonText}>My Profile</Text>
+      </Pressable>
 
       <Pressable style={styles.button} onPress={handleLogout}>
         <Text style={styles.buttonText}>Logout</Text>
