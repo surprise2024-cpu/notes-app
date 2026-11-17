@@ -41,3 +41,8 @@ example
 # generated native folders
 /ios
 /android
+
+# vs code extra's
+.vscode/
+.vscode/extension.json
+.vscode/settings.json
