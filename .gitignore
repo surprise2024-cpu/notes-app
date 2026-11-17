@@ -42,7 +42,5 @@ example
 /ios
 /android
 
-# vs code extra's
+# vscode extra's
 .vscode/
-.vscode/extension.json
-.vscode/settings.json
