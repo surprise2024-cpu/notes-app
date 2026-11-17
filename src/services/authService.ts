@@ -135,3 +135,46 @@ export async function getUserById(id: string): Promise<User | null> {
     email: user.email,
   };
 }
+
+type UpdateProfileDetails = {
+  username: string;
+  currentPassword: string;
+  newPassword?: string;
+};
+
+export async function updateUserProfile(
+  userId: string,
+  details: UpdateProfileDetails,
+): Promise<User> {
+  const users = await getStoredUsers();
+
+  const userIndex = users.findIndex((user) => user.id === userId);
+
+  if (userIndex === -1) {
+    throw new Error("User account not found.");
+  }
+
+  const currentUser = users[userIndex];
+
+  // Verify the current password.
+  await loginUser(currentUser.email, details.currentPassword);
+
+  // Update username only.
+  currentUser.username = details.username.trim();
+
+  // Change the password only when requested.
+  if (details.newPassword) {
+    const salt = await Crypto.getRandomBytesAsync(16);
+
+    currentUser.salt = toHex(salt);
+    currentUser.passwordHash = await hashPassword(details.newPassword, salt);
+  }
+
+  await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+
+  return {
+    id: currentUser.id,
+    username: currentUser.username,
+    email: currentUser.email,
+  };
+}
