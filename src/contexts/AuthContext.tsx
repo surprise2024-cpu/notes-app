@@ -24,6 +24,7 @@ type AuthContextType = {
   signUp: (username: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,6 +59,16 @@ async function clearSession(): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const refreshUser = async () => {
+    if (!user) return;
+
+    const updatedUser = await getUserById(user.id);
+
+    if (updatedUser) {
+      setUser(updatedUser);
+    }
+  };
 
   // Restore the user's session when the app starts.
   useEffect(() => {
@@ -122,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signIn,
         signOut,
+        refreshUser,
       }}
     >
       {children}
