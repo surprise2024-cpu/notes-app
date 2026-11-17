@@ -121,3 +121,17 @@ export async function loginUser(
     email: user.email,
   };
 }
+
+export async function getUserById(id: string): Promise<User | null> {
+  const users = await getStoredUsers();
+
+  const user = users.find((item) => item.id === id);
+
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+  };
+}
