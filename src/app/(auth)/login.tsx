@@ -14,11 +14,14 @@ import {
 
 import { loginSchema, type LoginFormData } from "@/validators/auth";
 
-import { loginUser } from "../../services/authService";
+
+import { useAuth } from "../../contexts/AuthContext";
 
 type FormErrors = Partial<Record<keyof LoginFormData, string>>;
 
 export default function LoginScreen() {
+  const { signIn } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -60,12 +63,7 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      const user = await loginUser(result.data.email, result.data.password);
-
-      console.log("Login successful:", user.username);
-
-      // Temporary navigation.
-      router.replace("/home");
+      await signIn(result.data.email, result.data.password);
     } catch (error) {
       setAuthError(
         error instanceof Error
