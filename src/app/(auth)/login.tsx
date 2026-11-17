@@ -1,6 +1,6 @@
 import { Link, useRouter } from "expo-router";
-import { Eye, EyeOff } from "lucide-react-native";
 import { useState } from "react";
+
 import {
   KeyboardAvoidingView,
   Platform,
@@ -8,31 +8,27 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
+import FormInput from "@/components/forms/FormInput";
+import PasswordInput from "@/components/forms/PasswordInput";
+
+import { useAuth } from "@/contexts/AuthContext";
 import { loginSchema, type LoginFormData } from "@/validators/auth";
-
-
-import { useAuth } from "../../contexts/AuthContext";
 
 type FormErrors = Partial<Record<keyof LoginFormData, string>>;
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
-
-  const router = useRouter();
-
-  const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (isLoading) return;
@@ -89,79 +85,39 @@ export default function LoginScreen() {
       >
         <View style={styles.form}>
           <Text style={styles.title}>Welcome Back</Text>
+
           <Text style={styles.subtitle}>Sign in to access your notes.</Text>
 
-          <Text style={styles.label}>Email Address</Text>
-
-          <TextInput
-            style={[
-              styles.input,
-              focusedField === "email" && styles.focusedInput,
-            ]}
+          {/* Email Address */}
+          <FormInput
+            label="Email Address"
             placeholder="Enter your email"
-            placeholderTextColor="#94A3B8"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="email"
-            onFocus={() => setFocusedField("email")}
-            onBlur={() => setFocusedField(null)}
+            error={errors.email}
           />
 
-          {errors.email && <Text style={styles.error}>{errors.email}</Text>}
+          {/* Password */}
+          <PasswordInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoComplete="current-password"
+            error={errors.password}
+            rightLabel="Forgot Password?"
+            onRightPress={() => router.push("/forgot-password")}
+          />
 
-          <View style={styles.passwordHeader}>
-            <Text style={styles.label}>Password</Text>
-
-            <Link href="/forgot-password" style={styles.forgotPassword}>
-              Forgot Password?
-            </Link>
-          </View>
-
-          <View
-            style={[
-              styles.passwordContainer,
-              focusedField === "password" && styles.focusedInput,
-            ]}
-          >
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Enter your password"
-              placeholderTextColor="#94A3B8"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoComplete="off"
-              textContentType="none"
-              onFocus={() => setFocusedField("password")}
-              onBlur={() => setFocusedField(null)}
-            />
-
-            <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                showPassword ? "Hide password" : "Show password"
-              }
-              hitSlop={10}
-            >
-              {showPassword ? (
-                <Eye size={20} color="#64748B" />
-              ) : (
-                <EyeOff size={20} color="#64748B" />
-              )}
-            </Pressable>
-          </View>
-
-          {errors.password && (
-            <Text style={styles.error}>{errors.password}</Text>
-          )}
-
+          {/* Authentication Error */}
           {authError ? <Text style={styles.error}>{authError}</Text> : null}
 
+          {/* Login Button */}
           <Pressable
             style={[styles.button, isLoading && styles.disabledButton]}
             onPress={handleLogin}
@@ -172,6 +128,7 @@ export default function LoginScreen() {
             </Text>
           </Pressable>
 
+          {/* Registration Link */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
 
@@ -190,10 +147,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
+
   scrollView: {
     flex: 1,
     width: "100%",
   },
+
   content: {
     flexGrow: 1,
     justifyContent: "center",
@@ -201,6 +160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 24,
   },
+
   form: {
     width: "100%",
     maxWidth: 460,
@@ -210,82 +170,27 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
   },
+
   title: {
     fontSize: 27,
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 6,
   },
+
   subtitle: {
     fontSize: 14,
     color: "#64748B",
     marginBottom: 24,
   },
-  passwordHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 1,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 6,
-  },
-  input: {
-    height: 46,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: "#0F172A",
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
-    ...({ outlineStyle: "none" } as object),
-  },
-  passwordContainer: {
-    height: 46,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
-  },
-  passwordInput: {
-    flex: 1,
-    height: "100%",
-    fontSize: 14,
-    color: "#0F172A",
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    marginRight: 8,
-    ...({ outlineStyle: "none" } as object),
-  },
-  focusedInput: {
-    borderColor: "#2563EB",
-    borderWidth: 1.5,
-  },
+
   error: {
     fontSize: 12,
     color: "#DC2626",
-    marginTop: -8,
+    marginTop: 8,
     marginBottom: 12,
   },
-  forgotPassword: {
-    color: "#2563EB",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
+
   button: {
     backgroundColor: "#2563EB",
     paddingVertical: 13,
@@ -293,20 +198,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
+
+  disabledButton: {
+    opacity: 0.6,
+  },
+
   buttonText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
   },
+
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 20,
+    flexWrap: "wrap",
   },
+
   footerText: {
     color: "#64748B",
     fontSize: 13,
   },
+
   link: {
     color: "#2563EB",
     fontSize: 13,
