@@ -16,6 +16,8 @@ export type User = {
 type StoredUser = User & {
   passwordHash: string;
   salt: string;
+  recoveryHash?: string;
+  recoverySalt?: string;
 };
 
 type RegisterDetails = {
@@ -177,4 +179,86 @@ export async function updateUserProfile(
     username: currentUser.username,
     email: currentUser.email,
   };
+}
+
+export async function generateRecoveryCode(
+  userId: string,
+  currentPassword: string,
+): Promise<string> {
+  const users = await getStoredUsers();
+
+  const user = users.find((item) => item.id === userId);
+
+  if (!user) {
+    throw new Error("Account not found.");
+  }
+
+  // Verify ownership before creating a recovery code.
+  await loginUser(user.email, currentPassword);
+
+  // Generate a random 128-bit recovery code.
+  const randomBytes = await Crypto.getRandomBytesAsync(16);
+  const code = toHex(randomBytes).toUpperCase();
+
+  // Generate a separate salt for the recovery code.
+  const salt = await Crypto.getRandomBytesAsync(16);
+
+  user.recoverySalt = toHex(salt);
+  user.recoveryHash = await hashPassword(code, salt);
+
+  await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+
+  // Format the code so it's easier to save.
+  return code.match(/.{1,8}/g)!.join("-");
+}
+
+export async function resetPasswordWithRecoveryCode(
+  email: string,
+  recoveryCode: string,
+  newPassword: string,
+): Promise<void> {
+  const users = await getStoredUsers();
+
+  const user = users.find((item) => item.email === email.trim().toLowerCase());
+
+  if (!user?.recoveryHash || !user.recoverySalt) {
+    throw new Error("Invalid email or recovery code.");
+  }
+
+  const normalizedCode = recoveryCode.replace(/-/g, "").trim().toUpperCase();
+
+  if (!/^[0-9A-F]{32}$/.test(normalizedCode)) {
+    throw new Error("Invalid email or recovery code.");
+  }
+
+  const enteredHash = await hashPassword(
+    normalizedCode,
+    fromHex(user.recoverySalt),
+  );
+
+  // Compare the derived hashes.
+  const enteredBytes = fromHex(enteredHash);
+  const savedBytes = fromHex(user.recoveryHash);
+
+  let difference = enteredBytes.length ^ savedBytes.length;
+
+  for (let i = 0; i < enteredBytes.length; i++) {
+    difference |= enteredBytes[i] ^ (savedBytes[i] ?? 0);
+  }
+
+  if (difference !== 0) {
+    throw new Error("Invalid email or recovery code.");
+  }
+
+  // Create a new salted password hash.
+  const newSalt = await Crypto.getRandomBytesAsync(16);
+
+  user.salt = toHex(newSalt);
+  user.passwordHash = await hashPassword(newPassword, newSalt);
+
+  // Recovery codes can only be used once.
+  delete user.recoveryHash;
+  delete user.recoverySalt;
+
+  await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
