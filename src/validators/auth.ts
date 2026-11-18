@@ -58,3 +58,24 @@ export const profileSchema = z
   });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;
+
+export const recoverySetupSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    email: z.email("Enter a valid email address"),
+
+    recoveryCode: z.string().trim().min(1, "Recovery code is required"),
+
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match",
+  });
+
+export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
