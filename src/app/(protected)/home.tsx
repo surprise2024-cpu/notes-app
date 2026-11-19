@@ -1,6 +1,13 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { LogOut, Plus, UserRound } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import {
+  BriefcaseBusiness,
+  GraduationCap,
+  Heart,
+  LogOut,
+  Plus,
+  UserRound,
+} from "lucide-react-native";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   ActivityIndicator,
@@ -14,9 +21,11 @@ import {
 } from "react-native";
 
 import NoteCard from "@/components/notes/NoteCard";
+import NoteSearchSort from "@/components/notes/NoteSearchSort";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteNote, getUserNotes } from "@/services/noteService";
-import type { Note } from "@/types/note";
+import { NOTE_CATEGORIES, type Note } from "@/types/note";
+import { filterAndSortNotes, type NoteSortOrder } from "@/utils/noteFilters";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,6 +35,15 @@ export default function HomeScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Search and sorting state
+  const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<NoteSortOrder>("newest");
+
+  const visibleNotes = useMemo(
+    () => filterAndSortNotes(notes, search, sortOrder),
+    [notes, search, sortOrder],
+  );
 
   // Delete confirmation state
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
@@ -79,32 +97,33 @@ export default function HomeScreen() {
     });
   };
 
-  // Delete the selected note after confirmation.
+  // Delete selected note after confirmation.
   const handleDelete = async () => {
     if (!user || !noteToDelete || isDeleting) return;
 
+    const noteId = noteToDelete.id;
     setIsDeleting(true);
 
     try {
-      await deleteNote(user.id, noteToDelete.id);
+      await deleteNote(user.id, noteId);
 
-      // Remove the deleted note from the displayed list.
       setNotes((previousNotes) =>
-        previousNotes.filter((note) => note.id !== noteToDelete.id),
+        previousNotes.filter((note) => note.id !== noteId),
       );
 
       setNoteToDelete(null);
     } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Unable to delete note.",
-      );
+      const message =
+        error instanceof Error ? error.message : "Unable to delete note.";
+
+      setError(message);
+      setNoteToDelete(null);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // Log out the current user.
+  // Log out current user.
   const handleLogout = async () => {
     try {
       await signOut();
@@ -118,6 +137,7 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>
@@ -153,12 +173,62 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Categories Heading */}
+        <Text style={styles.categoriesTitle}>Categories</Text>
+
+        {/* Category Cards */}
+        <View style={styles.categories}>
+          {NOTE_CATEGORIES.map((category) => {
+            const Icon =
+              category === "Work"
+                ? BriefcaseBusiness
+                : category === "Study"
+                  ? GraduationCap
+                  : Heart;
+
+            const categoryCount = notes.filter(
+              (note) => note.category === category,
+            ).length;
+
+            return (
+              <Pressable
+                key={category}
+                style={styles.categoryCard}
+                onPress={() =>
+                  router.push({
+                    pathname: "/categories/[category]",
+                    params: { category },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`View ${category} notes`}
+              >
+                <Icon size={22} color="#2563EB" />
+
+                <Text style={styles.categoryName}>{category}</Text>
+
+                <Text style={styles.categoryCount}>
+                  {categoryCount} {categoryCount === 1 ? "note" : "notes"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Search and Sorting */}
+        <NoteSearchSort
+          search={search}
+          onSearchChange={setSearch}
+          sortOrder={sortOrder}
+          onSortChange={setSortOrder}
+        />
+
         {/* Notes Heading */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>All Notes</Text>
 
           <Text style={styles.count}>
-            {notes.length} {notes.length === 1 ? "note" : "notes"}
+            {visibleNotes.length} {visibleNotes.length === 1 ? "note" : "notes"}
           </Text>
         </View>
 
@@ -179,8 +249,16 @@ export default function HomeScreen() {
               Create your first note to get started.
             </Text>
           </View>
+        ) : visibleNotes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No matching notes</Text>
+
+            <Text style={styles.emptyText}>
+              Try searching for something else.
+            </Text>
+          </View>
         ) : (
-          notes.map((note) => (
+          visibleNotes.map((note) => (
             <NoteCard
               key={note.id}
               note={note}
@@ -315,6 +393,45 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  // Categories
+  categoriesTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 16,
+  },
+
+  categories: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 32,
+  },
+
+  categoryCard: {
+    flexGrow: 1,
+    flexBasis: 100,
+    minWidth: 100,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
+
+  categoryName: {
+    color: "#0F172A",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  categoryCount: {
+    color: "#64748B",
+    fontSize: 12,
+  },
+
+  // All Notes
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -366,6 +483,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
 
+  // Floating Create Note Button
   addButton: {
     position: "absolute",
     bottom: 28,
