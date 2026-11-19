@@ -3,85 +3,98 @@ import {
   BriefcaseBusiness,
   GraduationCap,
   Heart,
-  LogOut,
+  Menu,
   Plus,
+  Search,
   UserRound,
+  X,
 } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import NoteCard from "@/components/notes/NoteCard";
-import NoteSearchSort from "@/components/notes/NoteSearchSort";
+import NoteCreateModal from "@/components/notes/NoteCreateModal";
+import NoteEditorModal from "@/components/notes/NoteEditorModal";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteNote, getUserNotes } from "@/services/noteService";
-import { NOTE_CATEGORIES, type Note } from "@/types/note";
+
+import { NOTE_CATEGORIES, type Note, type NoteCategory } from "@/types/note";
+
 import { filterAndSortNotes, type NoteSortOrder } from "@/utils/noteFilters";
+
+type CategoryFilter = NoteCategory | "All";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
-  // Notes state
+  // Notes
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Search and sorting state
-  const [search, setSearch] = useState("");
+  // Sidebar and filters
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [category, setCategory] = useState<CategoryFilter>("All");
   const [sortOrder, setSortOrder] = useState<NoteSortOrder>("newest");
+  const [search, setSearch] = useState("");
 
-  const visibleNotes = useMemo(
-    () => filterAndSortNotes(notes, search, sortOrder),
-    [notes, search, sortOrder],
-  );
+  // Add Note popup
+  const [createOpen, setCreateOpen] = useState(false);
 
-  // Delete confirmation state
+  // Edit Note popup
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+
+  // Delete confirmation
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Reload notes whenever Home receives focus.
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      const loadNotes = async () => {
+      const load = async () => {
         if (!user) {
           setNotes([]);
-          setIsLoading(false);
+          setLoading(false);
           return;
         }
 
-        setIsLoading(true);
+        setLoading(true);
         setError("");
 
         try {
-          const savedNotes = await getUserNotes(user.id);
+          const saved = await getUserNotes(user.id);
 
           if (active) {
-            setNotes(savedNotes);
+            setNotes(saved);
           }
         } catch {
           if (active) {
-            setError("Unable to load your notes.");
+            setError("Unable to load notes.");
           }
         } finally {
           if (active) {
-            setIsLoading(false);
+            setLoading(false);
           }
         }
       };
 
-      loadNotes();
+      load();
 
       return () => {
         active = false;
@@ -89,46 +102,70 @@ export default function HomeScreen() {
     }, [user?.id]),
   );
 
-  // Navigate to the Edit Note screen.
-  const handleEdit = (note: Note) => {
-    router.push({
-      pathname: "/edit-note/[id]",
-      params: { id: note.id },
-    });
+  // Apply category filtering, searching and sorting.
+  const visibleNotes = useMemo(() => {
+    const categoryNotes =
+      category === "All"
+        ? notes
+        : notes.filter((note) => note.category === category);
+
+    return filterAndSortNotes(categoryNotes, search, sortOrder);
+  }, [notes, category, search, sortOrder]);
+
+  // Select a category from the sidebar.
+  const selectCategory = (value: CategoryFilter) => {
+    setCategory(value);
+    setDrawerOpen(false);
   };
 
-  // Delete selected note after confirmation.
+  // Select the sorting order.
+  const selectSort = (value: NoteSortOrder) => {
+    setSortOrder(value);
+    setDrawerOpen(false);
+  };
+
+  // Handle successful note creation.
+  const handleCreated = (newNote: Note) => {
+    setNotes((previous) => [...previous, newNote]);
+    setCreateOpen(false);
+  };
+
+  // Handle successful note editing.
+  const handleSaved = (updated: Note) => {
+    setNotes((previous) =>
+      previous.map((note) => (note.id === updated.id ? updated : note)),
+    );
+
+    setSelectedNote(null);
+  };
+
+  // Delete selected note.
   const handleDelete = async () => {
-    if (!user || !noteToDelete || isDeleting) return;
+    if (!user || !noteToDelete || deleting) return;
 
     const noteId = noteToDelete.id;
-    setIsDeleting(true);
+
+    setDeleting(true);
+    setError("");
 
     try {
       await deleteNote(user.id, noteId);
 
-      setNotes((previousNotes) =>
-        previousNotes.filter((note) => note.id !== noteId),
-      );
+      setNotes((previous) => previous.filter((note) => note.id !== noteId));
 
       setNoteToDelete(null);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to delete note.";
-
-      setError(message);
+    } catch {
+      setError("Unable to delete note.");
       setNoteToDelete(null);
     } finally {
-      setIsDeleting(false);
+      setDeleting(false);
     }
   };
 
-  // Log out current user.
-  const handleLogout = async () => {
-    try {
-      await signOut();
-    } catch {
-      Alert.alert("Error", "Unable to log out.");
+  // Close Delete confirmation without deleting.
+  const closeDeleteModal = () => {
+    if (!deleting) {
+      setNoteToDelete(null);
     }
   };
 
@@ -141,91 +178,54 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <Pressable
+            style={styles.headerIcon}
+            onPress={() => setDrawerOpen(true)}
+            accessibilityLabel="Open menu"
+            accessibilityRole="button"
+          >
+            <Menu size={26} color="#0F172A" />
+          </Pressable>
+
           <View style={styles.heading}>
-            <Text style={styles.greeting}>Hello, {user?.username}!</Text>
-
-            <Text style={styles.title}>My Notes</Text>
-
-            <Text style={styles.subtitle}>
-              Organize your thoughts in one place.
+            <Text style={styles.title}>
+              {category === "All" ? "All Notes" : `${category} Notes`}
             </Text>
+
+            <Text style={styles.subtitle}>Hello, {user?.username}!</Text>
           </View>
 
-          {/* Profile and Logout */}
-          <View style={styles.actions}>
-            <Pressable
-              style={styles.iconButton}
-              onPress={() => router.push("/profile")}
-              accessibilityLabel="My Profile"
-              accessibilityRole="button"
-            >
-              <UserRound size={20} color="#2563EB" />
-            </Pressable>
-
-            <Pressable
-              style={styles.iconButton}
-              onPress={handleLogout}
-              accessibilityLabel="Logout"
-              accessibilityRole="button"
-            >
-              <LogOut size={20} color="#DC2626" />
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.headerIcon}
+            onPress={() => router.push("/profile")}
+            accessibilityLabel="Open Profile"
+            accessibilityRole="button"
+          >
+            <UserRound size={23} color="#2563EB" />
+          </Pressable>
         </View>
 
-        {/* Categories Heading */}
-        <Text style={styles.categoriesTitle}>Categories</Text>
+        {/* Search */}
+        <View style={styles.searchBox}>
+          <Search size={19} color="#64748B" />
 
-        {/* Category Cards */}
-        <View style={styles.categories}>
-          {NOTE_CATEGORIES.map((category) => {
-            const Icon =
-              category === "Work"
-                ? BriefcaseBusiness
-                : category === "Study"
-                  ? GraduationCap
-                  : Heart;
-
-            const categoryCount = notes.filter(
-              (note) => note.category === category,
-            ).length;
-
-            return (
-              <Pressable
-                key={category}
-                style={styles.categoryCard}
-                onPress={() =>
-                  router.push({
-                    pathname: "/categories/[category]",
-                    params: { category },
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={`View ${category} notes`}
-              >
-                <Icon size={22} color="#2563EB" />
-
-                <Text style={styles.categoryName}>{category}</Text>
-
-                <Text style={styles.categoryCount}>
-                  {categoryCount} {categoryCount === 1 ? "note" : "notes"}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search your notes..."
+            placeholderTextColor="#94A3B8"
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Search notes"
+          />
         </View>
-
-        {/* Search and Sorting */}
-        <NoteSearchSort
-          search={search}
-          onSearchChange={setSearch}
-          sortOrder={sortOrder}
-          onSortChange={setSortOrder}
-        />
 
         {/* Notes Heading */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>All Notes</Text>
+          <Text style={styles.sectionTitle}>
+            {category === "All" ? "My Notes" : category}
+          </Text>
 
           <Text style={styles.count}>
             {visibleNotes.length} {visibleNotes.length === 1 ? "note" : "notes"}
@@ -233,28 +233,24 @@ export default function HomeScreen() {
         </View>
 
         {/* Notes List */}
-        {isLoading ? (
+        {loading ? (
           <ActivityIndicator
             size="large"
             color="#2563EB"
             style={styles.loader}
           />
         ) : error ? (
-          <Text style={styles.message}>{error}</Text>
-        ) : notes.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No notes yet</Text>
-
-            <Text style={styles.emptyText}>
-              Create your first note to get started.
-            </Text>
-          </View>
+          <Text style={styles.error}>{error}</Text>
         ) : visibleNotes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No matching notes</Text>
+            <Text style={styles.emptyTitle}>
+              {notes.length === 0 ? "No notes yet" : "No matching notes"}
+            </Text>
 
             <Text style={styles.emptyText}>
-              Try searching for something else.
+              {notes.length === 0
+                ? "Create your first note to get started."
+                : "Try another search or category."}
             </Text>
           </View>
         ) : (
@@ -262,36 +258,172 @@ export default function HomeScreen() {
             <NoteCard
               key={note.id}
               note={note}
-              onEdit={handleEdit}
+              onEdit={setSelectedNote}
               onDelete={setNoteToDelete}
             />
           ))
         )}
       </ScrollView>
 
-      {/* Floating Create Note Button */}
+      {/* Floating Add Note Button */}
       <Pressable
-        style={styles.addButton}
-        onPress={() => router.push("/create-note")}
-        accessibilityRole="button"
+        style={[styles.addButton, { bottom: insets.bottom + 20 }]}
+        onPress={() => setCreateOpen(true)}
         accessibilityLabel="Create Note"
+        accessibilityRole="button"
       >
         <Plus size={26} color="#FFFFFF" />
       </Pressable>
 
-      {/* Delete Confirmation Modal */}
+      {/* Sidebar */}
       <Modal
+        visible={drawerOpen}
         transparent
-        visible={noteToDelete !== null}
         animationType="fade"
-        onRequestClose={() => {
-          if (!isDeleting) {
-            setNoteToDelete(null);
-          }
-        }}
+        statusBarTranslucent
+        onRequestClose={() => setDrawerOpen(false)}
+      >
+        <View style={styles.drawerOverlay}>
+          <View style={styles.drawer}>
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>My Notes</Text>
+
+              <Pressable
+                onPress={() => setDrawerOpen(false)}
+                accessibilityLabel="Close menu"
+                accessibilityRole="button"
+              >
+                <X size={22} color="#475569" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.drawerLabel}>CATEGORIES</Text>
+
+              {/* All Notes */}
+              <Pressable
+                style={[
+                  styles.drawerItem,
+                  category === "All" && styles.activeItem,
+                ]}
+                onPress={() => selectCategory("All")}
+                accessibilityRole="button"
+              >
+                <Menu size={19} color="#2563EB" />
+
+                <Text style={styles.drawerItemText}>All Notes</Text>
+
+                <Text style={styles.drawerCount}>{notes.length}</Text>
+              </Pressable>
+
+              {/* Work, Study, Personal */}
+              {NOTE_CATEGORIES.map((item) => {
+                const Icon =
+                  item === "Work"
+                    ? BriefcaseBusiness
+                    : item === "Study"
+                      ? GraduationCap
+                      : Heart;
+
+                const count = notes.filter(
+                  (note) => note.category === item,
+                ).length;
+
+                return (
+                  <Pressable
+                    key={item}
+                    style={[
+                      styles.drawerItem,
+                      category === item && styles.activeItem,
+                    ]}
+                    onPress={() => selectCategory(item)}
+                    accessibilityRole="button"
+                  >
+                    <Icon size={19} color="#2563EB" />
+
+                    <Text style={styles.drawerItemText}>{item}</Text>
+
+                    <Text style={styles.drawerCount}>{count}</Text>
+                  </Pressable>
+                );
+              })}
+
+              <View style={styles.divider} />
+
+              {/* Sorting */}
+              <Text style={styles.drawerLabel}>SORT BY DATE ADDED</Text>
+
+              {(["newest", "oldest"] as const).map((value) => (
+                <Pressable
+                  key={value}
+                  style={[
+                    styles.drawerItem,
+                    sortOrder === value && styles.activeItem,
+                  ]}
+                  onPress={() => selectSort(value)}
+                  accessibilityRole="button"
+                >
+                  <View
+                    style={[
+                      styles.radio,
+                      sortOrder === value && styles.radioActive,
+                    ]}
+                  />
+
+                  <Text style={styles.drawerItemText}>
+                    {value === "newest" ? "Newest First" : "Oldest First"}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Outside area closes sidebar */}
+          <Pressable
+            style={styles.drawerDismiss}
+            onPress={() => setDrawerOpen(false)}
+            accessibilityLabel="Close sidebar"
+            accessibilityRole="button"
+          />
+        </View>
+      </Modal>
+
+      {/* Add Note Popup */}
+      <NoteCreateModal
+        visible={createOpen}
+        userId={user?.id ?? ""}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreated}
+      />
+
+      {/* Edit Note Popup */}
+      <NoteEditorModal
+        note={selectedNote}
+        userId={user?.id ?? ""}
+        onClose={() => setSelectedNote(null)}
+        onSaved={handleSaved}
+      />
+
+      {/* Delete Confirmation Popup */}
+      <Modal
+        visible={noteToDelete !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeDeleteModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          {/* Tap outside to cancel deletion */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeDeleteModal}
+            disabled={deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel note deletion"
+          />
+
+          {/* Confirmation Card */}
+          <View style={styles.confirmCard}>
             <Text style={styles.modalTitle}>Delete Note?</Text>
 
             <Text style={styles.modalDescription}>
@@ -303,24 +435,21 @@ export default function HomeScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.cancelButton}
-                onPress={() => setNoteToDelete(null)}
-                disabled={isDeleting}
+                onPress={closeDeleteModal}
+                disabled={deleting}
                 accessibilityRole="button"
               >
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
 
               <Pressable
-                style={[
-                  styles.deleteButton,
-                  isDeleting && styles.disabledButton,
-                ]}
+                style={[styles.deleteButton, deleting && styles.disabledButton]}
                 onPress={handleDelete}
-                disabled={isDeleting}
+                disabled={deleting}
                 accessibilityRole="button"
               >
                 <Text style={styles.deleteText}>
-                  {isDeleting ? "Deleting..." : "Delete"}
+                  {deleting ? "Deleting..." : "Delete"}
                 </Text>
               </Pressable>
             </View>
@@ -342,122 +471,93 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     alignSelf: "center",
     paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 100,
+    paddingTop: 24,
+    paddingBottom: 120,
   },
 
+  // Header
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 32,
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 28,
+  },
+
+  headerIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
 
   heading: {
     flex: 1,
   },
 
-  greeting: {
-    color: "#2563EB",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-
   title: {
-    fontSize: 30,
+    fontSize: 25,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 6,
   },
 
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748B",
+    marginTop: 3,
   },
 
-  actions: {
+  // Search
+  searchBox: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-  },
-
-  iconButton: {
-    width: 42,
-    height: 42,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#CBD5E1",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 14,
+    marginBottom: 28,
   },
 
-  // Categories
-  categoriesTitle: {
-    fontSize: 19,
-    fontWeight: "700",
+  searchInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 14,
     color: "#0F172A",
-    marginBottom: 16,
+    ...({ outlineStyle: "none" } as object),
   },
 
-  categories: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 32,
-  },
-
-  categoryCard: {
-    flexGrow: 1,
-    flexBasis: 100,
-    minWidth: 100,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-
-  categoryName: {
-    color: "#0F172A",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-
-  categoryCount: {
-    color: "#64748B",
-    fontSize: 12,
-  },
-
-  // All Notes
+  // Notes
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
 
   sectionTitle: {
-    color: "#0F172A",
     fontSize: 19,
     fontWeight: "700",
+    color: "#0F172A",
   },
 
   count: {
-    color: "#64748B",
     fontSize: 13,
+    color: "#64748B",
   },
 
   loader: {
     marginTop: 60,
   },
 
-  message: {
-    textAlign: "center",
+  error: {
     color: "#DC2626",
-    marginTop: 40,
+    textAlign: "center",
+    marginTop: 30,
   },
 
   emptyState: {
@@ -465,8 +565,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: 16,
-    paddingVertical: 48,
-    paddingHorizontal: 20,
+    padding: 30,
     alignItems: "center",
   },
 
@@ -479,14 +578,13 @@ const styles = StyleSheet.create({
 
   emptyText: {
     fontSize: 14,
-    textAlign: "center",
     color: "#64748B",
+    textAlign: "center",
   },
 
-  // Floating Create Note Button
+  // Floating Add Button
   addButton: {
     position: "absolute",
-    bottom: 28,
     right: 24,
     width: 58,
     height: 58,
@@ -494,19 +592,105 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
+    elevation: 5,
   },
 
-  // Delete Confirmation Modal
+  // Sidebar
+  drawerOverlay: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "rgba(15,23,42,0.5)",
+  },
+
+  drawer: {
+    width: "80%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 32,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+  },
+
+  drawerDismiss: {
+    flex: 1,
+  },
+
+  drawerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 32,
+  },
+
+  drawerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  drawerLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    marginBottom: 14,
+    letterSpacing: 1,
+  },
+
+  drawerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 15,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+
+  activeItem: {
+    backgroundColor: "#EFF6FF",
+  },
+
+  drawerItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#334155",
+    fontWeight: "600",
+  },
+
+  drawerCount: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 22,
+  },
+
+  radio: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#94A3B8",
+  },
+
+  radioActive: {
+    borderColor: "#2563EB",
+    backgroundColor: "#2563EB",
+  },
+
+  // Delete Confirmation
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
-    justifyContent: "center",
+    backgroundColor: "rgba(15,23,42,0.5)",
     alignItems: "center",
+    justifyContent: "center",
     padding: 20,
   },
 
-  modalCard: {
+  confirmCard: {
     width: "100%",
     maxWidth: 380,
     backgroundColor: "#FFFFFF",
