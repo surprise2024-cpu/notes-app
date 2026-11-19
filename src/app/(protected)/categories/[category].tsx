@@ -3,27 +3,32 @@ import { ArrowLeft } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 
 import {
-    ActivityIndicator,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 import NoteCard from "@/components/notes/NoteCard";
+import NoteEditorModal from "@/components/notes/NoteEditorModal";
 import NoteSearchSort from "@/components/notes/NoteSearchSort";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteNote, getUserNotes } from "@/services/noteService";
+
 import { NOTE_CATEGORIES, type Note, type NoteCategory } from "@/types/note";
+
 import { filterAndSortNotes, type NoteSortOrder } from "@/utils/noteFilters";
 
 export default function CategoryScreen() {
   const router = useRouter();
+
   const { category } = useLocalSearchParams<{
     category: string;
   }>();
+
   const { user } = useAuth();
 
   // Notes state
@@ -31,23 +36,27 @@ export default function CategoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Search and sorting state
+  // Search and sorting
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<NoteSortOrder>("newest");
 
+  // Note editing popup
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+
+  // Delete confirmation
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Validate the category from the route.
+  const validCategory = NOTE_CATEGORIES.includes(category as NoteCategory);
+
+  // Filter and sort the category's notes.
   const visibleNotes = useMemo(
     () => filterAndSortNotes(notes, search, sortOrder),
     [notes, search, sortOrder],
   );
 
-  // Delete confirmation state
-  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // Validate category from the URL.
-  const validCategory = NOTE_CATEGORIES.includes(category as NoteCategory);
-
-  // Reload category notes whenever this screen receives focus.
+  // Reload notes whenever the screen receives focus.
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -93,15 +102,23 @@ export default function CategoryScreen() {
     }, [user?.id, category, validCategory]),
   );
 
-  // Navigate to Edit Note.
+  // Open the note editor popup.
   const handleEdit = (note: Note) => {
-    router.push({
-      pathname: "/edit-note/[id]",
-      params: { id: note.id },
-    });
+    setSelectedNote(note);
   };
 
-  // Delete the selected note.
+  // Update the displayed notes after editing.
+  const handleSaved = (updated: Note) => {
+    setNotes((previous) =>
+      previous
+        .map((note) => (note.id === updated.id ? updated : note))
+        .filter((note) => note.category === category),
+    );
+
+    setSelectedNote(null);
+  };
+
+  // Delete a note after confirmation.
   const handleDelete = async () => {
     if (!user || !noteToDelete || isDeleting) return;
 
@@ -124,7 +141,7 @@ export default function CategoryScreen() {
     }
   };
 
-  // Invalid category URL.
+  // Invalid category route.
   if (!validCategory) {
     return (
       <View style={styles.center}>
@@ -154,6 +171,7 @@ export default function CategoryScreen() {
           accessibilityRole="button"
         >
           <ArrowLeft size={18} color="#2563EB" />
+
           <Text style={styles.backText}>Back to Home</Text>
         </Pressable>
 
@@ -217,6 +235,14 @@ export default function CategoryScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Edit Note Popup */}
+      <NoteEditorModal
+        note={selectedNote}
+        userId={user?.id ?? ""}
+        onClose={() => setSelectedNote(null)}
+        onSaved={handleSaved}
+      />
 
       {/* Delete Confirmation Modal */}
       <Modal
