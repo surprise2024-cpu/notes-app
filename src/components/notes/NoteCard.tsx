@@ -3,13 +3,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Note } from "@/types/note";
 
-type NoteCardProps = {
+type Props = {
   note: Note;
   onEdit: (note: Note) => void;
   onDelete: (note: Note) => void;
 };
 
-export default function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
+export default function NoteCard({ note, onEdit, onDelete }: Props) {
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-ZA", {
       day: "numeric",
@@ -19,29 +19,35 @@ export default function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {note.title || "Untitled Note"}
-        </Text>
+      <Pressable
+        onPress={() => onEdit(note)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${note.title || "Untitled Note"}`}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title} numberOfLines={1}>
+            {note.title || "Untitled Note"}
+          </Text>
 
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{note.category}</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{note.category}</Text>
+          </View>
         </View>
-      </View>
 
-      <Text style={styles.content} numberOfLines={3}>
-        {note.content}
-      </Text>
+        <Text style={styles.content} numberOfLines={5}>
+          {note.content}
+        </Text>
+      </Pressable>
 
       <View style={styles.footer}>
         <View style={styles.dates}>
           <Text style={styles.date}>Added {formatDate(note.createdAt)}</Text>
 
-          {note.updatedAt && (
-            <Text style={styles.editedDate}>
+          {note.updatedAt ? (
+            <Text style={styles.edited}>
               Edited {formatDate(note.updatedAt)}
             </Text>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.actions}>
@@ -79,8 +85,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 12,
     marginBottom: 12,
   },
@@ -102,15 +108,15 @@ const styles = StyleSheet.create({
     color: "#2563EB",
   },
   content: {
-    color: "#475569",
     fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 14,
+    color: "#475569",
+    lineHeight: 22,
+    marginBottom: 16,
   },
   footer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-end",
+    justifyContent: "space-between",
     gap: 12,
   },
   dates: {
@@ -118,12 +124,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   date: {
+    fontSize: 12,
     color: "#94A3B8",
-    fontSize: 12,
   },
-  editedDate: {
-    color: "#2563EB",
+  edited: {
     fontSize: 12,
+    color: "#2563EB",
   },
   actions: {
     flexDirection: "row",
