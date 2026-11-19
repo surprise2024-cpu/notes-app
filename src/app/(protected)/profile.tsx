@@ -1,33 +1,45 @@
 import { useRouter } from "expo-router";
-import { ArrowLeft, Lock } from "lucide-react-native";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Lock,
+  LogOut,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "lucide-react-native";
 import { useEffect, useState } from "react";
 
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from "react-native";
 
 import FormInput from "@/components/forms/FormInput";
 import PasswordInput from "@/components/forms/PasswordInput";
 import { useAuth } from "@/contexts/AuthContext";
-
 import {
   generateRecoveryCode,
   updateUserProfile,
 } from "@/services/authService";
-
 import { profileSchema, type ProfileFormData } from "@/validators/auth";
+
+type Section = "manage" | "security" | "about" | "logout" | null;
 
 type FormErrors = Partial<Record<keyof ProfileFormData, string>>;
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, signOut } = useAuth();
+
+  const [section, setSection] = useState<Section>(null);
 
   // Profile fields
   const [username, setUsername] = useState(user?.username ?? "");
@@ -35,35 +47,66 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
 
-  // Profile feedback
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [serverError, setServerError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Account recovery
+  // Recovery fields
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
-  const [recoveryError, setRecoveryError] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Keep the form updated when account information changes.
+  // Feedback
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     setUsername(user?.username ?? "");
   }, [user?.username]);
 
-  // Save username and optional password changes.
-  const handleSave = async () => {
-    if (isLoading || !user) return;
+  // Close popup and clear temporary fields.
+  const closeModal = () => {
+    if (loading) return;
 
-    setServerError("");
-    setSuccessMessage("");
+    setSection(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setRecoveryPassword("");
+    setRecoveryCode("");
+    setErrors({});
+    setMessage("");
+    setSuccess("");
+  };
+
+  // Open selected settings popup.
+  const openSection = (value: Section) => {
+    setErrors({});
+    setMessage("");
+    setSuccess("");
+    setRecoveryCode("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setRecoveryPassword("");
+    setUsername(user?.username ?? "");
+    setSection(value);
+  };
+
+  // Update username or password.
+  const saveProfile = async () => {
+    if (!user || loading) return;
+
+    setMessage("");
+    setSuccess("");
+
+    if (section === "security" && !newPassword) {
+      setMessage("Please enter a new password.");
+      return;
+    }
 
     const result = profileSchema.safeParse({
-      username,
+      username: section === "manage" ? username : user.username,
       currentPassword,
-      newPassword,
-      confirmNewPassword,
+      newPassword: section === "security" ? newPassword : "",
+      confirmNewPassword: section === "security" ? confirmNewPassword : "",
     });
 
     if (!result.success) {
@@ -82,7 +125,7 @@ export default function ProfileScreen() {
     }
 
     setErrors({});
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       await updateUserProfile(user.id, {
@@ -97,31 +140,34 @@ export default function ProfileScreen() {
       setNewPassword("");
       setConfirmNewPassword("");
 
-      setSuccessMessage("Profile updated successfully!");
+      setSuccess(
+        section === "manage"
+          ? "Profile updated successfully!"
+          : "Password changed successfully!",
+      );
     } catch (error) {
-      setServerError(
-        error instanceof Error
-          ? error.message
-          : "Unable to update your profile.",
+      setMessage(
+        error instanceof Error ? error.message : "Unable to update account.",
       );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Generate a recovery code after verifying the password.
-  const handleGenerateRecoveryCode = async () => {
-    if (!user || isGenerating) return;
+  // Generate account recovery code.
+  const createRecoveryCode = async () => {
+    if (!user || loading) return;
 
-    setRecoveryError("");
+    setMessage("");
+    setSuccess("");
     setRecoveryCode("");
 
     if (!recoveryPassword.trim()) {
-      setRecoveryError("Current password is required.");
+      setMessage("Enter your current password first.");
       return;
     }
 
-    setIsGenerating(true);
+    setLoading(true);
 
     try {
       const code = await generateRecoveryCode(user.id, recoveryPassword);
@@ -129,186 +175,374 @@ export default function ProfileScreen() {
       setRecoveryCode(code);
       setRecoveryPassword("");
     } catch (error) {
-      setRecoveryError(
+      setMessage(
         error instanceof Error
           ? error.message
           : "Unable to generate recovery code.",
       );
     } finally {
-      setIsGenerating(false);
+      setLoading(false);
+    }
+  };
+
+  // Logout only after confirmation.
+  const confirmLogout = async () => {
+    if (loading) return;
+
+    setMessage("");
+    setLoading(true);
+
+    try {
+      await signOut();
+      setSection(null);
+    } catch {
+      setMessage("Unable to log out. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.container}>
       <ScrollView
-        style={styles.scrollView}
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
-        bounces={false}
       >
-        <View style={styles.form}>
-          {/* Back to Home */}
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
           <Pressable
-            style={styles.backButton}
+            style={styles.headerBackButton}
             onPress={() => router.replace("/home")}
             accessibilityRole="button"
+            accessibilityLabel="Back to Notes"
           >
-            <ArrowLeft size={18} color="#2563EB" />
-            <Text style={styles.backText}>Back to Home</Text>
+            <ChevronLeft size={28} color="#0F172A" />
           </Pressable>
 
-          <Text style={styles.title}>My Profile</Text>
+          <Text style={styles.title}>Profile</Text>
 
-          <Text style={styles.subtitle}>
-            Manage your account information and security.
-          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-          {/* Username */}
-          <FormInput
-            label="Username"
-            placeholder="Enter your username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-            error={errors.username}
-          />
-
-          {/* Read-only Email */}
-          <View style={styles.emailSection}>
-            <View style={styles.emailHeader}>
-              <Text style={styles.label}>Email Address</Text>
-              <Lock size={15} color="#64748B" />
-            </View>
-
-            <View style={styles.readOnlyInput}>
-              <Text style={styles.emailText}>{user?.email ?? ""}</Text>
-            </View>
-
-            <Text style={styles.hint}>
-              Your email address cannot be changed.
-            </Text>
+        {/* User Identity */}
+        <View style={styles.identity}>
+          <View style={styles.avatar}>
+            <UserRound size={40} color="#2563EB" />
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.identityText}>
+            <Text style={styles.username}>{user?.username}</Text>
 
-          <Text style={styles.sectionTitle}>Account Security</Text>
-
-          {/* Current Password */}
-          <PasswordInput
-            label="Current Password"
-            placeholder="Enter your current password"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            autoCapitalize="none"
-            autoComplete="current-password"
-            error={errors.currentPassword}
-          />
-
-          {/* New Password */}
-          <PasswordInput
-            label="New Password (Optional)"
-            placeholder="Enter a new password"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={errors.newPassword}
-          />
-
-          {/* Confirm New Password */}
-          <PasswordInput
-            label="Confirm New Password"
-            placeholder="Confirm your new password"
-            value={confirmNewPassword}
-            onChangeText={setConfirmNewPassword}
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={errors.confirmNewPassword}
-          />
-
-          {/* Profile feedback */}
-          {serverError ? <Text style={styles.error}>{serverError}</Text> : null}
-
-          {successMessage ? (
-            <Text style={styles.success}>{successMessage}</Text>
-          ) : null}
-
-          {/* Save Profile */}
-          <Pressable
-            style={[styles.button, isLoading && styles.disabledButton]}
-            onPress={handleSave}
-            disabled={isLoading}
-            accessibilityRole="button"
-          >
-            <Text style={styles.buttonText}>
-              {isLoading ? "Saving..." : "Save Changes"}
+            <Text style={styles.email} numberOfLines={2}>
+              {user?.email}
             </Text>
-          </Pressable>
-
-          {/* Account Recovery */}
-          <View style={styles.recoverySection}>
-            <Text style={styles.sectionTitle}>Account Recovery</Text>
-
-            <Text style={styles.recoveryDescription}>
-              Generate a recovery code to reset your password if you forget it.
-              Save this code somewhere safe.
-            </Text>
-
-            <PasswordInput
-              label="Current Password"
-              placeholder="Enter your current password"
-              value={recoveryPassword}
-              onChangeText={setRecoveryPassword}
-              autoCapitalize="none"
-              autoComplete="current-password"
-              error={recoveryError}
-            />
-
-            <Pressable
-              style={[styles.button, isGenerating && styles.disabledButton]}
-              onPress={handleGenerateRecoveryCode}
-              disabled={isGenerating}
-              accessibilityRole="button"
-            >
-              <Text style={styles.buttonText}>
-                {isGenerating ? "Generating..." : "Generate Recovery Code"}
-              </Text>
-            </Pressable>
-
-            {recoveryCode ? (
-              <View style={styles.recoveryCodeBox}>
-                <Text style={styles.recoveryCodeLabel}>Your Recovery Code</Text>
-
-                <Text selectable style={styles.recoveryCodeText}>
-                  {recoveryCode}
-                </Text>
-
-                <Text style={styles.recoveryWarning}>
-                  Save this code now. It will not be shown again after leaving
-                  this screen. Generating another code invalidates the previous
-                  one.
-                </Text>
-
-                <Pressable
-                  onPress={() => setRecoveryCode("")}
-                  accessibilityRole="button"
-                  style={styles.dismissButton}
-                >
-                  <Text style={styles.dismissText}>I've Saved My Code</Text>
-                </Pressable>
-              </View>
-            ) : null}
           </View>
         </View>
+
+        {/* Settings Menu */}
+        <Text style={styles.menuHeading}>ACCOUNT SETTINGS</Text>
+
+        <Pressable
+          style={styles.menuRow}
+          onPress={() => openSection("manage")}
+          accessibilityRole="button"
+        >
+          <UserRound size={23} color="#334155" />
+
+          <Text style={styles.menuText}>Manage Profile</Text>
+
+          <ChevronRight size={20} color="#94A3B8" />
+        </Pressable>
+
+        <Pressable
+          style={styles.menuRow}
+          onPress={() => openSection("security")}
+          accessibilityRole="button"
+        >
+          <ShieldCheck size={23} color="#334155" />
+
+          <Text style={styles.menuText}>Password & Security</Text>
+
+          <ChevronRight size={20} color="#94A3B8" />
+        </Pressable>
+
+        <Pressable
+          style={styles.menuRow}
+          onPress={() => openSection("about")}
+          accessibilityRole="button"
+        >
+          <Info size={23} color="#334155" />
+
+          <Text style={styles.menuText}>About the App</Text>
+
+          <ChevronRight size={20} color="#94A3B8" />
+        </Pressable>
+
+        <View style={styles.divider} />
+
+        <Pressable
+          style={styles.menuRow}
+          onPress={() => openSection("logout")}
+          accessibilityRole="button"
+        >
+          <LogOut size={23} color="#DC2626" />
+
+          <Text style={styles.logoutText}>Log Out</Text>
+
+          <ChevronRight size={20} color="#94A3B8" />
+        </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      {/* Settings Popup */}
+      <Modal
+        transparent
+        visible={section !== null}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.overlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Tap outside to dismiss */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeModal}
+            accessibilityRole="button"
+            accessibilityLabel="Close profile popup"
+            disabled={loading}
+          />
+
+          <View style={styles.modal}>
+            {/* Popup Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {section === "manage"
+                  ? "Manage Profile"
+                  : section === "security"
+                    ? "Password & Security"
+                    : section === "about"
+                      ? "About the App"
+                      : "Log Out"}
+              </Text>
+
+              <Pressable
+                onPress={closeModal}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Close popup"
+              >
+                <X size={22} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Manage Profile */}
+              {section === "manage" ? (
+                <>
+                  <FormInput
+                    label="Username"
+                    placeholder="Enter username"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                    error={errors.username}
+                  />
+
+                  <Text style={styles.label}>Email Address</Text>
+
+                  <View style={styles.readOnly}>
+                    <Text style={styles.readOnlyText}>{user?.email}</Text>
+
+                    <Lock size={16} color="#94A3B8" />
+                  </View>
+
+                  <Text style={styles.hint}>Your email cannot be changed.</Text>
+
+                  <PasswordInput
+                    label="Current Password"
+                    placeholder="Verify your password"
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    autoComplete="current-password"
+                    error={errors.currentPassword}
+                  />
+
+                  {message ? <Text style={styles.error}>{message}</Text> : null}
+
+                  {success ? (
+                    <Text style={styles.success}>{success}</Text>
+                  ) : null}
+
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      loading && styles.disabledButton,
+                    ]}
+                    onPress={saveProfile}
+                    disabled={loading}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.primaryText}>
+                      {loading ? "Saving..." : "Save Changes"}
+                    </Text>
+                  </Pressable>
+                </>
+              ) : null}
+
+              {/* Password and Security */}
+              {section === "security" ? (
+                <>
+                  <Text style={styles.subheading}>Change Password</Text>
+
+                  <PasswordInput
+                    label="Current Password"
+                    placeholder="Current password"
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    autoComplete="current-password"
+                    error={errors.currentPassword}
+                  />
+
+                  <PasswordInput
+                    label="New Password"
+                    placeholder="New password"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    autoComplete="new-password"
+                    error={errors.newPassword}
+                  />
+
+                  <PasswordInput
+                    label="Confirm New Password"
+                    placeholder="Confirm new password"
+                    value={confirmNewPassword}
+                    onChangeText={setConfirmNewPassword}
+                    autoComplete="new-password"
+                    error={errors.confirmNewPassword}
+                  />
+
+                  {success ? (
+                    <Text style={styles.success}>{success}</Text>
+                  ) : null}
+
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      loading && styles.disabledButton,
+                    ]}
+                    onPress={saveProfile}
+                    disabled={loading}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.primaryText}>
+                      {loading ? "Saving..." : "Change Password"}
+                    </Text>
+                  </Pressable>
+
+                  <View style={styles.divider} />
+
+                  <Text style={styles.subheading}>Account Recovery</Text>
+
+                  <Text style={styles.description}>
+                    Generate a recovery code in case you forget your password.
+                  </Text>
+
+                  <PasswordInput
+                    label="Current Password"
+                    placeholder="Verify current password"
+                    value={recoveryPassword}
+                    onChangeText={setRecoveryPassword}
+                    autoComplete="current-password"
+                  />
+
+                  <Pressable
+                    style={[
+                      styles.secondaryButton,
+                      loading && styles.disabledButton,
+                    ]}
+                    onPress={createRecoveryCode}
+                    disabled={loading}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.secondaryText}>
+                      Generate Recovery Code
+                    </Text>
+                  </Pressable>
+
+                  {recoveryCode ? (
+                    <View style={styles.codeBox}>
+                      <Text style={styles.codeLabel}>Your Recovery Code</Text>
+
+                      <Text selectable style={styles.codeText}>
+                        {recoveryCode}
+                      </Text>
+
+                      <Text style={styles.hint}>
+                        Save this code privately. It will not be shown again
+                        after closing.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {message ? <Text style={styles.error}>{message}</Text> : null}
+                </>
+              ) : null}
+
+              {/* About the App */}
+              {section === "about" ? (
+                <Text style={styles.description}>
+                  Notes App helps you create, organize, search and manage your
+                  personal notes.
+                  {"\n\n"}
+                  Notes are saved locally on this device.
+                </Text>
+              ) : null}
+
+              {/* Logout Confirmation */}
+              {section === "logout" ? (
+                <>
+                  <Text style={styles.description}>
+                    Are you sure you want to log out of your account?
+                  </Text>
+
+                  {message ? <Text style={styles.error}>{message}</Text> : null}
+
+                  <View style={styles.logoutActions}>
+                    <Pressable
+                      style={styles.cancelButton}
+                      onPress={closeModal}
+                      disabled={loading}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        styles.logoutButton,
+                        loading && styles.disabledButton,
+                      ]}
+                      onPress={confirmLogout}
+                      disabled={loading}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.logoutButtonText}>
+                        {loading ? "Logging out..." : "Log Out"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : null}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 }
 
@@ -318,194 +552,284 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
 
-  scrollView: {
-    flex: 1,
-    width: "100%",
-  },
-
   content: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-  },
-
-  form: {
     width: "100%",
-    maxWidth: 420,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
+    maxWidth: 560,
+    alignSelf: "center",
     padding: 24,
+    paddingBottom: 60,
   },
 
-  backButton: {
+  // Profile Header
+  profileHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 20,
-    alignSelf: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 36,
   },
 
-  backText: {
-    color: "#2563EB",
-    fontSize: 13,
-    fontWeight: "600",
+  headerBackButton: {
+    width: 42,
+    height: 42,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  headerSpacer: {
+    width: 42,
+    height: 42,
   },
 
   title: {
-    fontSize: 27,
+    flex: 1,
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0F172A",
+    textAlign: "center",
+  },
+
+  // User Identity
+  identity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    marginBottom: 42,
+  },
+
+  avatar: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: "#DBEAFE",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  identityText: {
+    flex: 1,
+  },
+
+  username: {
+    fontSize: 21,
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 6,
   },
 
-  subtitle: {
-    fontSize: 14,
+  email: {
+    fontSize: 13,
     color: "#64748B",
-    marginBottom: 20,
   },
 
-  emailSection: {
-    marginBottom: 16,
+  // Settings Menu
+  menuHeading: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    letterSpacing: 1,
+    marginBottom: 12,
   },
 
-  emailHeader: {
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingVertical: 19,
+  },
+
+  menuText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#0F172A",
+    fontWeight: "500",
+  },
+
+  logoutText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#DC2626",
+    fontWeight: "600",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 20,
+  },
+
+  // Modal
+  overlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "rgba(15,23,42,0.55)",
+  },
+
+  modal: {
+    width: "100%",
+    maxWidth: 450,
+    maxHeight: "88%",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    padding: 24,
+  },
+
+  modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 24,
+  },
+
+  modalTitle: {
+    flex: 1,
+    fontSize: 21,
+    fontWeight: "700",
+    color: "#0F172A",
   },
 
   label: {
     fontSize: 13,
     fontWeight: "600",
     color: "#334155",
+    marginBottom: 8,
   },
 
-  readOnlyInput: {
+  readOnly: {
     minHeight: 46,
-    justifyContent: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    backgroundColor: "#F1F5F9",
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "#F1F5F9",
   },
 
-  emailText: {
-    fontSize: 14,
+  readOnlyText: {
+    flex: 1,
     color: "#64748B",
+    fontSize: 14,
   },
 
   hint: {
-    fontSize: 12,
     color: "#94A3B8",
-    marginTop: 6,
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 7,
     marginBottom: 18,
   },
 
-  sectionTitle: {
+  subheading: {
     fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+
+  description: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 22,
+    marginBottom: 18,
   },
 
   error: {
-    fontSize: 12,
     color: "#DC2626",
-    marginTop: 8,
-    marginBottom: 12,
+    fontSize: 12,
+    marginVertical: 10,
   },
 
   success: {
-    fontSize: 13,
     color: "#15803D",
-    marginTop: 8,
-    marginBottom: 12,
+    fontSize: 13,
+    marginVertical: 10,
   },
 
-  button: {
+  primaryButton: {
+    paddingVertical: 14,
     backgroundColor: "#2563EB",
-    paddingVertical: 13,
-    borderRadius: 30,
+    borderRadius: 24,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 14,
+  },
+
+  primaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  secondaryButton: {
+    paddingVertical: 13,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#2563EB",
+    alignItems: "center",
+  },
+
+  secondaryText: {
+    color: "#2563EB",
+    fontWeight: "600",
   },
 
   disabledButton: {
     opacity: 0.6,
   },
 
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  recoverySection: {
-    marginTop: 28,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-  },
-
-  recoveryDescription: {
-    fontSize: 13,
-    color: "#64748B",
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-
-  recoveryCodeBox: {
+  // Recovery Code
+  codeBox: {
     marginTop: 16,
     padding: 14,
     backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
     borderRadius: 12,
   },
 
-  recoveryCodeLabel: {
+  codeLabel: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1E40AF",
     marginBottom: 8,
   },
 
-  recoveryCodeText: {
+  codeText: {
     fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
     lineHeight: 24,
-    flexWrap: "wrap",
   },
 
-  recoveryWarning: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 10,
-    lineHeight: 18,
+  // Logout Confirmation
+  logoutActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
   },
 
-  dismissButton: {
-    alignSelf: "flex-start",
-    marginTop: 14,
-    paddingVertical: 8,
+  cancelButton: {
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
   },
 
-  dismissText: {
-    fontSize: 13,
-    color: "#2563EB",
+  cancelText: {
+    color: "#334155",
+    fontWeight: "600",
+  },
+
+  logoutButton: {
+    backgroundColor: "#DC2626",
+    borderRadius: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+  },
+
+  logoutButtonText: {
+    color: "#FFFFFF",
     fontWeight: "600",
   },
 });
