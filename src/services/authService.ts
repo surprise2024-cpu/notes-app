@@ -1,8 +1,6 @@
-import { pbkdf2Async } from "@noble/hashes/pbkdf2.js";
-import { sha256 } from "@noble/hashes/sha2.js";
-import { utf8ToBytes } from "@noble/hashes/utils.js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
+import { pbkdf2 } from "react-native-quick-crypto";
 
 const USERS_KEY = "notes-app-users";
 const ITERATIONS = 120_000;
@@ -39,16 +37,26 @@ const fromHex = (hex: string): Uint8Array =>
   );
 
 // Hash a password using PBKDF2 and a unique salt.
+
 async function hashPassword(
   password: string,
   salt: Uint8Array,
 ): Promise<string> {
-  const hash = await pbkdf2Async(sha256, utf8ToBytes(password), salt, {
-    c: ITERATIONS,
-    dkLen: 32,
-  });
+  return new Promise((resolve, reject) => {
+    pbkdf2(password, salt, ITERATIONS, 32, "sha256", (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
 
-  return toHex(hash);
+      if (!derivedKey) {
+        reject(new Error("Password hashing failed."));
+        return;
+      }
+
+      resolve(toHex(new Uint8Array(derivedKey)));
+    });
+  });
 }
 
 // Read stored accounts.
