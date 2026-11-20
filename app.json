@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "notes-app",
+    "name": "notify",
     "slug": "notes-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,10 +17,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.thesupremeoverlord.notesapp"
     },
     "web": {
-      "output": "server",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -33,11 +34,22 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "react-native-quick-crypto"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "75988295-4cee-45c6-acab-fb650e37aff6"
+      }
     }
   }
 }
