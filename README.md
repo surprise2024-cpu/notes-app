@@ -1,56 +1,90 @@
-# Welcome to your Expo app 👋
+# Notify — Notes App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Notify is a simple and easy-to-use notes application built with React Native, Expo and TypeScript. It allows users to create, organize and manage their notes in one place.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **User Authentication** — Register, log in and log out securely.
+- **Password Recovery** — Reset a forgotten password using a recovery code.
+- **Notes Management** — Create, view, edit and delete notes.
+- **Categories** — Organize notes into Work, Study and Personal.
+- **Search** — Find notes by title or content.
+- **Sorting** — Sort notes by newest or oldest.
+- **Profile Management** — Update your username and change your password.
+- **Local Storage** — Notes and account information are stored on the device.
+- **Responsive Interface** — Clean layout with popup forms and a navigation sidebar.
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+| Technology                | Purpose                        |
+| ------------------------- | ------------------------------ |
+| React Native              | Mobile application development |
+| Expo                      | Development and Android builds |
+| TypeScript                | Type-safe application code     |
+| Expo Router               | Navigation                     |
+| AsyncStorage              | Local data persistence         |
+| Expo SecureStore          | Session storage on mobile      |
+| Zod                       | Form validation                |
+| React Native Quick Crypto | Password hashing               |
+| Lucide React Native       | Icons                          |
 
-   ```bash
-   npx expo start
-   ```
+## Download APK
 
-In the output, you'll find options to open the app in a
+Install Notify on your Android device using the APK from the Expo build page:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+**[Google Drive](https://drive.google.com/file/d/1yRqAoeUnq_U9iy58Cdzzn6zX_ER5uVKQ/view?usp=sharing)**
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Open the link, download the APK and install it on your Android device.
 
-## Get a fresh project
+_Note: Android may request permission to install an application from outside the Google Play Store._
 
-When you're ready, run:
+## Run Locally
+
+### Prerequisites
+
+- Node.js and npm
+- An Android device or emulator
+- Expo Go for supported development workflows, or a custom development build for native modules
+
+### Installation
+
+**1. Clone the repository**
 
 ```bash
-npm run reset-project
+git clone <https://github.com/surprise2024-cpu/notes-app.git>
+cd notes-app
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+**2. Install dependencies**
 
-### Other setup steps
+```bash
+npm install
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+**3. Start the development server**
 
-## Learn more
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+**4. Run the application**
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Use a compatible Android development build or emulator to run the application.
 
-## Join the community
+Because Notify uses native cryptography, the application cannot run directly in the standard Expo Go client.
 
-Join our community of developers creating universal apps.
+## Build Android APK
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+To generate an installable Android APK using Expo Application Services (EAS):
+
+```bash
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Once the build succeeds, download the APK from the link provided by Expo.
+
+## Data Storage
+
+Notify stores user accounts and notes locally using AsyncStorage. Passwords are stored as salted PBKDF2 hashes, while mobile session identifiers are saved using Expo SecureStore.
+
+**Important:** Notify is a local-first application. Data is not synchronized between devices, and uninstalling the app may erase locally stored information.
