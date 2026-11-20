@@ -14,6 +14,7 @@ import {
 import FormInput from "@/components/forms/FormInput";
 import PasswordInput from "@/components/forms/PasswordInput";
 import { useAuth } from "@/contexts/AuthContext";
+
 import { registerSchema, type RegisterFormData } from "@/validators/auth";
 
 type FormErrors = Partial<Record<keyof RegisterFormData, string>>;
@@ -61,16 +62,14 @@ export default function RegisterScreen() {
     setIsLoading(true);
 
     try {
-      // Create the account and automatically log the user in.
+      // Register and automatically sign in.
       await signUp(
         result.data.username,
         result.data.email,
         result.data.password,
       );
 
-      // No manual navigation needed.
-      // AuthContext updates the user, and Expo Router
-      // makes the protected Home screen accessible.
+      // AuthContext handles the authenticated state.
     } catch (error) {
       setServerError(
         error instanceof Error
@@ -96,11 +95,14 @@ export default function RegisterScreen() {
         bounces={false}
       >
         <View style={styles.form}>
-          <Text style={styles.title}>Create Account</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Create Account</Text>
 
-          <Text style={styles.subtitle}>
-            Sign up to start organizing your notes.
-          </Text>
+            <Text style={styles.subtitle}>
+              Sign up to start organizing your notes.
+            </Text>
+          </View>
 
           {/* Username */}
           <FormInput
@@ -148,10 +150,10 @@ export default function RegisterScreen() {
             error={errors.confirmPassword}
           />
 
-          {/* Registration error */}
+          {/* Registration Error */}
           {serverError ? <Text style={styles.error}>{serverError}</Text> : null}
 
-          {/* Create Account button */}
+          {/* Create Account Button */}
           <Pressable
             style={[styles.button, isLoading && styles.disabledButton]}
             onPress={handleRegister}
@@ -163,7 +165,7 @@ export default function RegisterScreen() {
             </Text>
           </Pressable>
 
-          {/* Login link */}
+          {/* Login Link */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
 
@@ -192,31 +194,31 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 36,
   },
 
+  // Borderless form container
   form: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
-    padding: 24,
+  },
+
+  header: {
+    marginBottom: 26,
   },
 
   title: {
-    fontSize: 27,
+    fontSize: 30,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 6,
+    marginBottom: 8,
   },
 
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#64748B",
-    marginBottom: 18,
+    lineHeight: 22,
   },
 
   error: {
@@ -227,10 +229,10 @@ const styles = StyleSheet.create({
 
   button: {
     backgroundColor: "#2563EB",
-    paddingVertical: 13,
+    paddingVertical: 15,
     borderRadius: 30,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 20,
   },
 
   disabledButton: {
@@ -247,7 +249,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     flexWrap: "wrap",
-    marginTop: 16,
+    marginTop: 24,
   },
 
   footerText: {
