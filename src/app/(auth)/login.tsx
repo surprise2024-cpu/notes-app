@@ -84,9 +84,12 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.form}>
-          <Text style={styles.title}>Welcome Back</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome Back</Text>
 
-          <Text style={styles.subtitle}>Sign in to access your notes.</Text>
+            <Text style={styles.subtitle}>Sign in to access your notes.</Text>
+          </View>
 
           {/* Email Address */}
           <FormInput
@@ -122,6 +125,7 @@ export default function LoginScreen() {
             style={[styles.button, isLoading && styles.disabledButton]}
             onPress={handleLogin}
             disabled={isLoading}
+            accessibilityRole="button"
           >
             <Text style={styles.buttonText}>
               {isLoading ? "Logging in..." : "Login"}
@@ -157,31 +161,31 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 40,
   },
 
+  // Borderless form container
   form: {
     width: "100%",
-    maxWidth: 460,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
-    padding: 24,
+    maxWidth: 420,
+  },
+
+  header: {
+    marginBottom: 32,
   },
 
   title: {
-    fontSize: 27,
+    fontSize: 30,
     fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 6,
+    marginBottom: 8,
   },
 
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#64748B",
-    marginBottom: 24,
+    lineHeight: 22,
   },
 
   error: {
@@ -193,10 +197,10 @@ const styles = StyleSheet.create({
 
   button: {
     backgroundColor: "#2563EB",
-    paddingVertical: 13,
+    paddingVertical: 15,
     borderRadius: 30,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 28,
   },
 
   disabledButton: {
@@ -212,18 +216,18 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
     flexWrap: "wrap",
+    marginTop: 26,
   },
 
   footerText: {
     color: "#64748B",
-    fontSize: 13,
+    fontSize: 14,
   },
 
   link: {
     color: "#2563EB",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
   },
 });
