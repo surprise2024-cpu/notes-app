@@ -112,10 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Authenticate an existing user.
+
   const signIn = async (email: string, password: string): Promise<void> => {
     const authenticatedUser = await loginUser(email, password);
 
     await saveSession(authenticatedUser.id);
+
     setUser(authenticatedUser);
   };
 
